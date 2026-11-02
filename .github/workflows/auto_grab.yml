@@ -2,8 +2,8 @@ name: Auto VLESS Grabber
 
 on:
   schedule:
-    - cron: '0 * * * *' # Будет запускаться ровно в начале каждого часа круглые сутки
-  workflow_dispatch:
+    - cron: '0 * * * *' # Запуск ровно в начале каждого часа круглые сутки
+  workflow_dispatch: # Оставляет кнопку для ручного запуска
 
 jobs:
   build:
@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Проверка репозитория
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Скачиваем полную историю, чтобы избежать конфликтов git
 
       - name: Настройка Python
         uses: actions/setup-python@v4
@@ -24,6 +26,14 @@ jobs:
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
+          
+          # Защита: подтягиваем изменения из облака, если ты что-то правил руками
+          git pull --rebase origin main
+          
           git add vless_proxies.txt sub.txt
+          
+          # Фиксируем изменения, если они есть
           git commit -m "📊 Авто-обновление прокси баз" || exit 0
-          git push
+          
+          # Принудительно отправляем в ветку main
+          git push origin main
