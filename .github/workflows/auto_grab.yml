@@ -1,0 +1,29 @@
+name: Auto VLESS Grabber
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # Запуск каждые 6 часов автоматически
+  workflow_dispatch: # Позволяет запускать скрипт вручную кнопкой
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Проверка репозитория
+        uses: actions/checkout@v3
+
+      - name: Настройка Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Запуск грабера
+        run: python grabber.py
+
+      - name: Публикация результатов в твой GitHub
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add vless_proxies.txt sub.txt
+          git commit -m "📊 Авто-обновление прокси баз" || exit 0
+          git push
