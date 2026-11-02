@@ -5,6 +5,10 @@ on:
     - cron: '0 * * * *' # Запуск ровно в начале каждого часа круглые сутки
   workflow_dispatch: # Оставляет кнопку для ручного запуска
 
+# ЯВНОЕ РАЗРЕШЕНИЕ НА ЗАПИСЬ ДЛЯ РОБОТА (Решает ошибку 128)
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,7 +31,7 @@ jobs:
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           
-          # Защита: подтягиваем изменения из облака, если ты что-то правил руками
+          # Подтягиваем изменения из облака, если ты что-то правил руками
           git pull --rebase origin main
           
           git add vless_proxies.txt sub.txt
@@ -35,5 +39,5 @@ jobs:
           # Фиксируем изменения, если они есть
           git commit -m "📊 Авто-обновление прокси баз" || exit 0
           
-          # Принудительно отправляем в ветку main
+          # Отправляем в ветку main
           git push origin main
