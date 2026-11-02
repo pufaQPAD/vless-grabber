@@ -6,6 +6,7 @@ import socket
 import ssl
 import concurrent.futures
 import sys
+import os
 
 LOG_FILE = "grabber_log.txt"
 OUTPUT_FILE = "vless_proxies.txt"
@@ -28,7 +29,6 @@ WORKERS_SOURCES = [
 
 def fetch_url(url):
     try:
-        # ИСПРАВЛЕНО: Жестко заставляем Python использовать твой системный VPN
         proxy_support = urllib.request.ProxyHandler()
         opener = urllib.request.build_opener(proxy_support)
         urllib.request.install_opener(opener)
@@ -44,9 +44,8 @@ def generate_cloudflare_warp_vless():
     warp_nodes = []
     try:
         import uuid
-        for i in range(1, 11): # Поднимаем генерацию до 10 серверов за раз
+        for i in range(1, 11):
             user_uuid = str(uuid.uuid4())
-            # Расширенный список Clean IP Cloudflare, которые сейчас активны
             clean_ips = [
                 "162.159.192.1", "162.159.193.1", "162.159.195.1", 
                 "104.16.124.28", "104.17.124.28", "172.67.74.251", "104.21.40.11"
@@ -72,7 +71,7 @@ def check_rkn_blocking_and_tls(link):
             
         query_params = urllib.parse.parse_qs(url_parsed.query)
         security = query_params.get('security', [''])
-        if not security or security[0].lower() == 'none':
+        if not security or security.lower() == 'none':
             return None
 
         sni_param = query_params.get('sni', [None])
@@ -126,8 +125,7 @@ def main():
     log(f"\n📊 [ШАГ 2/3] Собрано уникальных серверов на проверку: {total_count} шт.")
     if total_count == 0:
         log("📭 Пустой список. Работа завершена.")
-        # ИСПРАВЛЕНО: Остановка перед закрытием
-        input("\nНажмите Enter, чтобы закрыть окно...")
+        close_window_safely()
         return
 
     log("🎯 Запуск РКН/TLS-валидатора для отсева заблокированных IP...")
@@ -163,8 +161,13 @@ def main():
         log("📭 Все найденные прокси заблокированы ТСПУ.")
         
     log("\n=== РАБОТА СКРИПТА ПОЛНОСТЬЮ ЗАВЕРШЕНА ===")
-    
-    # ИСПРАВЛЕНО: Окно терминала больше не закроется само!
+    close_window_safely()
+
+def close_window_safely():
+    """Умное закрытие окна: на ПК ждет Enter, в облаке GitHub Actions завершается само"""
+    # Если скрипт запущен в облаке GitHub Actions, переменная 'GITHUB_ACTIONS' всегда равна 'true'
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        return
     print("\n" + "="*40)
     input("Готово! Нажмите клавишу ENTER для выхода...")
 
