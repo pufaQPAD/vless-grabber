@@ -12,7 +12,7 @@ LOG_FILE = "grabber_log.txt"
 OUTPUT_FILE = "vless_proxies.txt"
 
 with open(LOG_FILE, "w", encoding="utf-8") as f:
-    f.write("=== ЗАПУСК СУПЕР-ГРАБЕРА VLESS (WARP + WORKERS) ===\n")
+    f.write("=== ЗАПУСК СВЕРХМОЩНОГО МАССОВОГО ГРАБЕРА VLESS ===\n")
 
 def log(message, end="\n", flush=False):
     print(message, end=end, flush=flush)
@@ -20,11 +20,35 @@ def log(message, end="\n", flush=False):
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(message + ("\n" if end == "\n" else ""))
 
-WORKERS_SOURCES = [
+# МАКСИМАЛЬНЫЙ СПИСОК ЖИВЫХ ИСТОЧНИКОВ
+SOURCES = [
+    "".join(["https://", "raw.github", "usercontent.com", "/zu1k", "/proxys", "/main", "/proxies", "/vless"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/vfarid", "/v2ray-share", "/main", "/exported", "/vpn.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/w1770946466", "/Auto_Proxy", "/main", "/v_links.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/tbbatbb", "/Proxy", "/main", "/v2ray", "/v2ray.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/mehrtat", "/vless-collector", "/main", "/vless.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/yebekhe", "/TVC", "/main", "/protocols", "/vless"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/Fndroid", "/clash_config", "/main", "/vless.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/Bardiafa", "/Free-VLESS-VMess-SS", "/main", "/vless.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/alien-v2ray", "/v2ray", "/main", "/vless.txt"]),
     "".join(["https://", "raw.github", "usercontent.com", "/cmliu", "/CF-Workers-SUB", "/main", "/vless"]),
     "".join(["https://", "raw.github", "usercontent.com", "/vlesssub", "/vless", "/main", "/sub"]),
     "".join(["https://", "raw.github", "usercontent.com", "/ymyuuu", "/Cloudflare-Worker-Proxy", "/main", "/vless.txt"]),
-    "".join(["https://", "raw.github", "usercontent.com", "/zizifn", "/edgetunnel", "/main", "/discovered_vless.txt"])
+    "".join(["https://", "raw.github", "usercontent.com", "/zizifn", "/edgetunnel", "/main", "/discovered_vless.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/Soroushx", "/v2ray-configs", "/main", "/vless.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/barry-far", "/V2ray-Configs", "/main", "/All_Configs_Sub.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/officialputuid", "/Real-GUI-Sub", "/main", "/vless.txt"])
+]
+
+TELEGRAM_CHANNELS = [
+    "v2ray_outline_vless_vmess",
+    "FreeVlessVmessOutline",
+    "vless_vmess_ss_shadowsocks",
+    "nufilter",
+    "V2Ray_Alpha",
+    "v2rayNG_VPNo",
+    "free_v2ray_config",
+    "VlessConfig"
 ]
 
 def fetch_url(url):
@@ -33,108 +57,109 @@ def fetch_url(url):
         opener = urllib.request.build_opener(proxy_support)
         urllib.request.install_opener(opener)
         
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-        with urllib.request.urlopen(req, timeout=10) as response:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+        with urllib.request.urlopen(req, timeout=12) as response:
             return response.read().decode('utf-8', errors='ignore').strip()
     except:
         return ""
 
-def generate_cloudflare_warp_vless():
-    log("  [+] Генерация Warp-аккаунтов Cloudflare... ", end="", flush=True)
-    warp_nodes = []
-    try:
-        import uuid
-        for i in range(1, 11):
-            user_uuid = str(uuid.uuid4())
-            clean_ips = [
-                "162.159.192.1", "162.159.193.1", "162.159.195.1", 
-                "104.16.124.28", "104.17.124.28", "172.67.74.251", "104.21.40.11"
-            ]
-            ip = clean_ips[i % len(clean_ips)]
-            warp_vless = f"vless://{user_uuid}@{ip}:443?encryption=none&security=tls&sni=://cloudflareclient.com&type=ws&host=://cloudflareclient.com&path=%2Fwarp"
-            warp_nodes.append(warp_vless)
-            
-        log(f"Успешно! Создано {len(warp_nodes)} Warp-серверов.")
-        return warp_nodes
-    except Exception as e:
-        log(f"Ошибка: {e}")
-        return []
+def clean_html_tags(text):
+    """Декодирует скрытые спецсимволы Telegram обратно в понятный вид"""
+    text = urllib.parse.unquote(text)
+    text = text.replace("&amp;", "&").replace("&#47;", "/").replace("%2F", "/")
+    text = text.replace("&lt;", "<").replace("&gt;", ">").replace("&#58;", ":")
+    return text
 
-def check_rkn_blocking_and_tls(link):
+def decode_base64_if_needed(text):
+    if "vless://" in text:
+        return text
+    try:
+        padded_text = text + "=" * ((4 - len(text) % 4) % 4)
+        return base64.b64decode(padded_text).decode('utf-8', errors='ignore')
+    except:
+        return text
+
+def check_tls_handshake(link):
     try:
         clean_link = link.split('#')[0].strip()
         url_parsed = urllib.parse.urlparse(clean_link)
         host = url_parsed.hostname
         port = url_parsed.port
-        if not host or not port:
+        if not host:
             return None
+        if not port:
+            port = 443
             
         query_params = urllib.parse.parse_qs(url_parsed.query)
-        security = query_params.get('security', [''])
-        if not security or security.lower() == 'none':
-            return None
-
         sni_param = query_params.get('sni', [None])
         sni = sni_param[0] if sni_param and sni_param[0] else host
         
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(3.5)
+        sock.settimeout(2.5)
         
         context = ssl.create_default_context()
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
-        context.set_alpn_protocols(['http/1.1', 'h2'])
         
         secure_sock = context.wrap_socket(sock, server_hostname=sni)
         secure_sock.connect((host, int(port)))
-        
-        secure_sock.sendall(b"HEAD / HTTP/1.1\r\nHost: " + sni.encode() + b"\r\n\r\n")
-        secure_sock.recv(10)
         secure_sock.close()
         return link
     except:
         return None
 
 def main():
-    log("🚀 [ШАГ 1/3] Запуск объединенной генерации (WARP + WORKERS)...")
+    log("🚀 [ШАГ 1/3] Начинаем МАССОВЫЙ сбор прокси из всех источников...")
     all_vless_links = []
     
-    warp_links = generate_cloudflare_warp_vless()
-    all_vless_links.extend(warp_links)
-    
-    log("\n📁 Сканирование Cloudflare Workers & CDN агрегаторов:")
-    for i, source in enumerate(WORKERS_SOURCES, 1):
-        log(f"  [+] Запрос к CDN источнику #{i}... ", end="", flush=True)
+    log("\n📁 Сканирование репозиториев GitHub:")
+    for i, source in enumerate(SOURCES, 1):
+        log(f"  [+] Запрос к источнику GitHub #{i}... ", end="", flush=True)
         content = fetch_url(source)
         if content:
-            if "vless://" not in content:
-                try:
-                    padded = content + "=" * ((4 - len(content) % 4) % 4)
-                    content = base64.b64decode(padded).decode('utf-8', errors='ignore')
-                except:
-                    pass
-            links = re.findall(r"vless://[^\"'\s<>\s]+", content)
+            decoded = decode_base64_if_needed(content)
+            cleaned = clean_html_tags(decoded)
+            links = re.findall(r"vless://[^\"'\s<>\s]+", cleaned)
             log(f"Успешно! Найдено ссылок: {len(links)}")
             all_vless_links.extend(links)
         else:
             log("Ошибка (Недоступен)")
             
+    log("\n📢 Сканирование Telegram каналов (прямой безопасный парсинг):")
+    for channel in TELEGRAM_CHANNELS:
+        log(f"  [+] Чтение канала @{channel}... ", end="", flush=True)
+        
+        tg_url = f"https://t.me{channel}"
+        html_content = fetch_url(tg_url)
+        
+        if not html_content or "vless://" not in html_content:
+            slash = chr(47)
+            tg_url = "".join(["https:", slash, slash, "telemetr.", "me", slash, "r", slash, channel])
+            html_content = fetch_url(tg_url)
+            
+        if html_content:
+            cleaned_html = clean_html_tags(html_content)
+            links = re.findall(r"vless://[^\"'\s<>\s]+", cleaned_html)
+            log(f"Успешно! Найдено ссылок: {len(links)}")
+            all_vless_links.extend(links)
+        else:
+            log("Ошибка (Канал недоступен)")
+            
     unique_links = list(dict.fromkeys([l for l in all_vless_links if len(l) > 50]))
     total_count = len(unique_links)
     
-    log(f"\n📊 [ШАГ 2/3] Собрано уникальных серверов на проверку: {total_count} шт.")
+    log(f"\n📊 [ШАГ 2/3] Всего собрано уникальных прокси из сети: {total_count} шт.")
     if total_count == 0:
-        log("📭 Пустой список. Работа завершена.")
-        close_window_safely()
+        log("📭 База пуста. Проверка отменена.")
         return
 
-    log("🎯 Запуск РКН/TLS-валидатора для отсева заблокированных IP...")
+    log("🎯 Запуск многопоточного TLS-чекера для отсева 'железных трупов'...")
     
     working_links = []
     checked_count = 0
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=40) as executor:
-        futures = {executor.submit(check_rkn_blocking_and_tls, link): link for link in unique_links}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        futures = {executor.submit(check_tls_handshake, link): link for link in unique_links}
         for future in concurrent.futures.as_completed(futures):
             checked_count += 1
             res = future.result()
@@ -142,11 +167,11 @@ def main():
                 working_links.append(res)
             
             percent = int((checked_count / total_count) * 100)
-            sys.stdout.write(f"\r  Progress: [{checked_count}/{total_count}] ({percent}%) | Живых прокси: {len(working_links)} ")
+            sys.stdout.write(f"\r  Progress: [{checked_count}/{total_count}] ({percent}%) | Найдено живых портов: {len(working_links)} ")
             sys.stdout.flush()
             
-    log("\n\n✅ [ШАГ 3/3] Валидация полностью завершена!")
-    log(f"📊 Итог: Чистых, устойчивых к РКН прокси осталось {len(working_links)} из {total_count}")
+    log(f"\n\n✅ [ШАГ 3/3] TLS-отбор полностью завершен!")
+    log(f"📊 Итог проверки: живых серверов в базе {len(working_links)} из {total_count}")
     
     if working_links:
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
@@ -156,20 +181,12 @@ def main():
         base64_sub = base64.b64encode(raw_text.encode('utf-8')).decode('utf-8')
         with open("sub.txt", "w", encoding="utf-8") as f:
             f.write(base64_sub)
-            log("💾 База успешно перезаписана и сохранена в файлы!")
+            
+        log("💾 База успешно перезаписана и сохранена в файлы!")
     else:
-        log("📭 Все найденные прокси заблокированы ТСПУ.")
+        log("📭 Ни один порт не ответил.")
         
     log("\n=== РАБОТА СКРИПТА ПОЛНОСТЬЮ ЗАВЕРШЕНА ===")
-    close_window_safely()
-
-def close_window_safely():
-    """Умное закрытие окна: на ПК ждет Enter, в облаке GitHub Actions завершается само"""
-    # Если скрипт запущен в облаке GitHub Actions, переменная 'GITHUB_ACTIONS' всегда равна 'true'
-    if os.environ.get("GITHUB_ACTIONS") == "true":
-        return
-    print("\n" + "="*40)
-    input("Готово! Нажмите клавишу ENTER для выхода...")
 
 if __name__ == "__main__":
     main()
