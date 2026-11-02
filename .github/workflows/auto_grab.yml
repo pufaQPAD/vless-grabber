@@ -2,8 +2,8 @@ name: Auto VLESS Grabber
 
 on:
   schedule:
-    - cron: '0 * * * *' # Запуск ровно в начале каждого часа
-  workflow_dispatch: # Позволяет запускать скрипт вручную кнопкой
+    - cron: '0 * * * *' # Будет запускаться ровно в начале каждого часа круглые сутки
+  workflow_dispatch:
 
 jobs:
   build:
