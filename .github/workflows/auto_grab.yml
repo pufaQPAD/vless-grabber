@@ -5,7 +5,6 @@ on:
     - cron: '0 * * * *' # Запуск ровно в начале каждого часа круглые сутки
   workflow_dispatch: # Оставляет кнопку для ручного запуска
 
-# ЯВНОЕ РАЗРЕШЕНИЕ НА ЗАПИСЬ ДЛЯ РОБОТА (Решает ошибку 128)
 permissions:
   contents: write
 
@@ -15,8 +14,6 @@ jobs:
     steps:
       - name: Проверка репозитория
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0 # Скачиваем полную историю, чтобы избежать конфликтов git
 
       - name: Настройка Python
         uses: actions/setup-python@v4
@@ -26,18 +23,10 @@ jobs:
       - name: Запуск грабера
         run: python grabber.py
 
-      - name: Публикация результатов в твой GitHub
-        run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          
-          # Подтягиваем изменения из облака, если ты что-то правил руками
-          git pull --rebase origin main
-          
-          git add vless_proxies.txt sub.txt
-          
-          # Фиксируем изменения, если они есть
-          git commit -m "📊 Авто-обновление прокси баз" || exit 0
-          
-          # Отправляем в ветку main
-          git push origin main
+      - name: Автоматический коммит результатов в репозиторий
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "📊 Авто-обновление прокси баз"
+          file_pattern: 'vless_proxies.txt sub.txt'
+          commit_user_name: "GitHub Actions"
+          commit_user_email: "actions@github.com"
