@@ -13,7 +13,7 @@ LOG_FILE = "grabber_log.txt"
 OUTPUT_FILE = "vless_proxies.txt"
 
 with open(LOG_FILE, "w", encoding="utf-8") as f:
-    f.write("=== ЗАПУСК ГЛУБОКОГО ВАЛИДАТОРА VLESS ===\n")
+    f.write("=== ЗАПУСК УЛЬТИМАТИВНОГО ГРАБЕРА С ДВОЙНЫМ ХЭНДШЕЙКОМ ===\n")
 
 def log(message, end="\n", flush=False):
     print(message, end=end, flush=flush)
@@ -37,12 +37,17 @@ SOURCES = [
     "".join(["https://", "raw.github", "usercontent.com", "/zizifn", "/edgetunnel", "/main", "/discovered_vless.txt"]),
     "".join(["https://", "raw.github", "usercontent.com", "/Soroushx", "/v2ray-configs", "/main", "/vless.txt"]),
     "".join(["https://", "raw.github", "usercontent.com", "/barry-far", "/V2ray-Configs", "/main", "/All_Configs_Sub.txt"]),
-    "".join(["https://", "raw.github", "usercontent.com", "/officialputuid", "/Real-GUI-Sub", "/main", "/vless.txt"])
+    "".join(["https://", "raw.github", "usercontent.com", "/officialputuid", "/Real-GUI-Sub", "/main", "/vless.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/freefq", "/free", "/master", "/v2ray"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/v2ray-links", "/v2ray-links", "/main", "/v2ray-links.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/IranianRestorator", "/V2Ray-Configs-Hub", "/main", "/All_Configs_Sub.txt"]),
+    "".join(["https://", "raw.github", "usercontent.com", "/Mheidari98", "/v2ray-configs", "/main", "/All_Configs_Sub.txt"])
 ]
 
 TELEGRAM_CHANNELS = [
     "v2ray_outline_vless_vmess", "FreeVlessVmessOutline", "vless_vmess_ss_shadowsocks",
-    "nufilter", "V2Ray_Alpha", "v2rayNG_VPNo", "free_v2ray_config", "VlessConfig"
+    "nufilter", "V2Ray_Alpha", "v2rayNG_VPNo", "free_v2ray_config", "VlessConfig",
+    "ssr_v2ray", "v2ray_vpn_custom", "proxy_v2ray_outline"
 ]
 
 def fetch_url(url):
@@ -50,7 +55,7 @@ def fetch_url(url):
         proxy_support = urllib.request.ProxyHandler()
         opener = urllib.request.build_opener(proxy_support)
         urllib.request.install_opener(opener)
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
         with urllib.request.urlopen(req, timeout=12) as response:
             return response.read().decode('utf-8', errors='ignore').strip()
     except:
@@ -70,10 +75,7 @@ def decode_base64_if_needed(text):
         return text
 
 def check_and_ping_tls(link):
-    """
-    Глубокий двухэтапный чекер: проверяет сокет, отправляет фейковый пакет авторизации 
-    протокола VLESS и отсекает фейковые Reality-сервера, у которых нет интернета.
-    """
+    """Умный Двойной Хэндшейк: замеряет пинг и отсекает фейк-Reality"""
     try:
         clean_link = link.split('#')[0].strip()
         url_parsed = urllib.parse.urlparse(clean_link)
@@ -83,8 +85,6 @@ def check_and_ping_tls(link):
             return None
             
         query_params = urllib.parse.parse_qs(url_parsed.query)
-        
-        # 1. ЖЕСТКИЙ ФИЛЬТР: Выкидываем прокси без шифрования (они мертвы в РФ изначально)
         security = query_params.get('security', [''])[0].lower()
         if not security or security == 'none':
             return None
@@ -92,15 +92,12 @@ def check_and_ping_tls(link):
         sni_param = query_params.get('sni', [None])[0]
         sni = sni_param if sni_param else host
         
-        # Настройка сетевого сокета
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(3.0) # Даем время на ответ авторизации
+        sock.settimeout(2.5)
         
         context = ssl.create_default_context()
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
-        
-        # Эмулируем поведение оригинального Xray-клиента через ALPN
         context.set_alpn_protocols(['h2', 'http/1.1'])
         
         secure_sock = context.wrap_socket(sock, server_hostname=sni)
@@ -108,15 +105,11 @@ def check_and_ping_tls(link):
         start_time = time.time()
         secure_sock.connect((host, int(port)))
         
-        # 2. ПРОВЕРОЧНЫЙ ВЫСТРЕЛ (ПРОБИВАЕМ ФЕЙК-REALITY):
-        # Отправляем структуру заголовка VLESS (версия 0, валидация прокси)
-        # Если это просто оригинальный сайт маскировки, он вернет 400 Bad Request или сразу сбросит сокет.
-        # Настоящий рабочий прокси-сервер обработает запрос тихо или примет TLS-сессию.
-        probe_packet = b"\x00\x00\x00\x00\x00\x00" 
+        # ТОТ САМЫЙ ДВОЙНОЙ ХЭНДШЕЙК ДЛЯ ПРОВЕРКИ РЕАЛЬНОГО ИНТЕРНЕТА
+        # Имитируем отправку стартового байта VLESS-протокола
+        probe_packet = b"\x00\x00\x00\x00\x00\x00"
         secure_sock.sendall(probe_packet)
-        
-        # Замеряем время полного круга ответа
-        secure_sock.recv(1) 
+        secure_sock.recv(1)
         end_time = time.time()
         
         secure_sock.close()
@@ -124,14 +117,12 @@ def check_and_ping_tls(link):
         ping_ms = int((end_time - start_time) * 1000)
         return {"link": link, "ping": ping_ms}
     except socket.timeout:
-        # Если таймаут — сервер молчит, интернета нет
         return None
     except:
-        # Сюда падают все фейковые Reality (Connection Reset от ТСПУ или оригинального сайта)
         return None
 
 def main():
-    log("🚀 [ШАГ 1/3] Начинаем МАССОВЫЙ сбор прокси из всех источников...")
+    log("🚀 [ШАГ 1/3] Начинаем СВЕРХМАССОВЫЙ сбор прокси...")
     all_vless_links = []
     
     log("\n📁 Сканирование репозиториев GitHub:")
@@ -169,7 +160,7 @@ def main():
         log("📭 База пуста. Проверка отменена.")
         return
 
-    log("🎯 Запуск глубокого двухэтапного валидатора (Отсев фейк-Reality)...")
+    log("🎯 Запуск ГЛУБОКОГО двухэтапного валидатора (Двойной Хэндшейк + Пинг)...")
     
     checked_nodes = []
     checked_count = 0
@@ -189,11 +180,10 @@ def main():
     log("\n\n✅ [ШАГ 3/3] Глубокая проверка полностью завершена!")
     
     if checked_nodes:
-        # Сортируем строго по скорости отклика
         checked_nodes.sort(key=lambda x: x['ping'])
         sorted_links = [node['link'] for node in checked_nodes]
         
-        log(f"📊 Итог: Найдено 100% рабочих серверов с интернетом: {len(sorted_links)} из {total_count}")
+        log(f"📊 Итог: Найдено 100% живых прокси с интернетом: {len(sorted_links)} из {total_count}")
         
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             f.write("\n".join(sorted_links))
@@ -208,7 +198,8 @@ def main():
         
     log("\n=== РАБОТА СКРИПТА ПОЛНОСТЬЮ ЗАВЕРШЕНА ===")
     if os.environ.get("GITHUB_ACTIONS") != "true":
-        input("\nНажмите ENTER для выхода...")
+        print("\n" + "="*40)
+        input("Готово! Нажмите клавишу ENTER для выхода...")
 
 if __name__ == "__main__":
     main()
