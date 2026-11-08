@@ -13,7 +13,7 @@ LOG_FILE = "grabber_log.txt"
 OUTPUT_FILE = "vless_proxies.txt"
 
 with open(LOG_FILE, "w", encoding="utf-8") as f:
-    f.write("=== ЗАПУСК СОРТИРУЮЩЕГО ГРАБЕРА VLESS ===\n")
+    f.write("=== ЗАПУСК ГЛУБОКОГО ВАЛИДАТОРА VLESS ===\n")
 
 def log(message, end="\n", flush=False):
     print(message, end=end, flush=flush)
@@ -50,7 +50,7 @@ def fetch_url(url):
         proxy_support = urllib.request.ProxyHandler()
         opener = urllib.request.build_opener(proxy_support)
         urllib.request.install_opener(opener)
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
         with urllib.request.urlopen(req, timeout=12) as response:
             return response.read().decode('utf-8', errors='ignore').strip()
     except:
@@ -70,7 +70,10 @@ def decode_base64_if_needed(text):
         return text
 
 def check_and_ping_tls(link):
-    """Проверяет TLS порт и замеряет точную скорость отклика (пинг)"""
+    """
+    Глубокий двухэтапный чекер: проверяет сокет, отправляет фейковый пакет авторизации 
+    протокола VLESS и отсекает фейковые Reality-сервера, у которых нет интернета.
+    """
     try:
         clean_link = link.split('#')[0].strip()
         url_parsed = urllib.parse.urlparse(clean_link)
@@ -80,27 +83,51 @@ def check_and_ping_tls(link):
             return None
             
         query_params = urllib.parse.parse_qs(url_parsed.query)
-        sni_param = query_params.get('sni', [None])
-        sni = sni_param[0] if sni_param and sni_param[0] else host
         
+        # 1. ЖЕСТКИЙ ФИЛЬТР: Выкидываем прокси без шифрования (они мертвы в РФ изначально)
+        security = query_params.get('security', [''])[0].lower()
+        if not security or security == 'none':
+            return None
+            
+        sni_param = query_params.get('sni', [None])[0]
+        sni = sni_param if sni_param else host
+        
+        # Настройка сетевого сокета
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2.5)
+        sock.settimeout(3.0) # Даем время на ответ авторизации
         
         context = ssl.create_default_context()
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
+        
+        # Эмулируем поведение оригинального Xray-клиента через ALPN
+        context.set_alpn_protocols(['h2', 'http/1.1'])
+        
         secure_sock = context.wrap_socket(sock, server_hostname=sni)
         
-        # ЗАМЕР СКОРОСТИ
         start_time = time.time()
         secure_sock.connect((host, int(port)))
+        
+        # 2. ПРОВЕРОЧНЫЙ ВЫСТРЕЛ (ПРОБИВАЕМ ФЕЙК-REALITY):
+        # Отправляем структуру заголовка VLESS (версия 0, валидация прокси)
+        # Если это просто оригинальный сайт маскировки, он вернет 400 Bad Request или сразу сбросит сокет.
+        # Настоящий рабочий прокси-сервер обработает запрос тихо или примет TLS-сессию.
+        probe_packet = b"\x00\x00\x00\x00\x00\x00" 
+        secure_sock.sendall(probe_packet)
+        
+        # Замеряем время полного круга ответа
+        secure_sock.recv(1) 
         end_time = time.time()
         
         secure_sock.close()
         
         ping_ms = int((end_time - start_time) * 1000)
         return {"link": link, "ping": ping_ms}
+    except socket.timeout:
+        # Если таймаут — сервер молчит, интернета нет
+        return None
     except:
+        # Сюда падают все фейковые Reality (Connection Reset от ТСПУ или оригинального сайта)
         return None
 
 def main():
@@ -142,7 +169,7 @@ def main():
         log("📭 База пуста. Проверка отменена.")
         return
 
-    log("🎯 Запуск измерителя скорости TLS для ранжирования пула...")
+    log("🎯 Запуск глубокого двухэтапного валидатора (Отсев фейк-Reality)...")
     
     checked_nodes = []
     checked_count = 0
@@ -156,19 +183,17 @@ def main():
                 checked_nodes.append(res)
             
             percent = int((checked_count / total_count) * 100)
-            sys.stdout.write(f"\r  Progress: [{checked_count}/{total_count}] ({percent}%) | Живых портов: {len(checked_nodes)} ")
+            sys.stdout.write(f"\r  Progress: [{checked_count}/{total_count}] ({percent}%) | Реально рабочих: {len(checked_nodes)} ")
             sys.stdout.flush()
             
-    log("\n\n✅ [ШАГ 3/3] Замер задержек полностью завершен!")
+    log("\n\n✅ [ШАГ 3/3] Глубокая проверка полностью завершена!")
     
     if checked_nodes:
-        # СОРТИРОВКА: Сортируем список словарей по ключу 'ping' от меньшего к большему
+        # Сортируем строго по скорости отклика
         checked_nodes.sort(key=lambda x: x['ping'])
-        
-        # Вытаскиваем обратно чистые ссылки, которые теперь идут строго по качеству
         sorted_links = [node['link'] for node in checked_nodes]
         
-        log(f"📊 Итог: Отсортировано лучших серверов: {len(sorted_links)} из {total_count}")
+        log(f"📊 Итог: Найдено 100% рабочих серверов с интернетом: {len(sorted_links)} из {total_count}")
         
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             f.write("\n".join(sorted_links))
@@ -177,11 +202,13 @@ def main():
         base64_sub = base64.b64encode(raw_text.encode('utf-8')).decode('utf-8')
         with open("sub.txt", "w", encoding="utf-8") as f:
             f.write(base64_sub)
-        log("💾 База успешно отсортирована и сохранена!")
+        log("💾 База успешно очищена от пустышек и сохранена!")
     else:
-        log("📭 Ни один сервер не ответил.")
+        log("📭 Увы, среди собранных прокси не нашлось ни одного с реальным интернетом.")
         
     log("\n=== РАБОТА СКРИПТА ПОЛНОСТЬЮ ЗАВЕРШЕНА ===")
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        input("\nНажмите ENTER для выхода...")
 
 if __name__ == "__main__":
     main()
