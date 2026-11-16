@@ -2,8 +2,8 @@ name: Auto VLESS Grabber
 
 on:
   schedule:
-    - cron: '0 * * * *' # Запуск ровно в начале каждого часа круглые сутки
-  workflow_dispatch: # Оставляет кнопку для ручного запуска
+    - cron: '15 */2 * * *' # Запуск каждые 2 часа (в 15 минут каждого четного часа, чтобы избежать пробок на серверах GitHub)
+  workflow_dispatch: # Оставляет кнопку ручного запуска
 
 permissions:
   contents: write
